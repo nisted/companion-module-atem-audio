@@ -1,0 +1,29 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
+	"id": "atem-audio",
+	"name": "atem-audio",
+	"shortname": "ATEM Audio",
+	"description": "ATEM audio desk: auto level and calibrate, Intech Grid faders with pickup, Fairlight EQ and dynamics with gain-reduction meters, classic mixer meters, recording, and a fader and meter web page",
+	"version": "0.0.0",
+	"license": "MIT",
+	"repository": "git+https://github.com/nisted/companion-module-atem-audio.git",
+	"bugs": "https://github.com/nisted/companion-module-atem-audio/issues",
+	"maintainers": [{ "name": "Nigel Isted" }],
+	"legacyIds": [],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../dist/src/main.js",
+		"permissions": {
+			"native-addons": true,
+			"worker-threads": true,
+			"child-process": true,
+			"filesystem": true
+		}
+	},
+	"manufacturer": "Blackmagic Design",
+	"products": ["ATEM Audio"],
+	"keywords": ["ATEM", "Fairlight", "audio", "auto gain", "AGC", "faders", "meters"]
+}
