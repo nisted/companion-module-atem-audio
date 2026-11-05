@@ -27,9 +27,9 @@ Heads up: connection fields don't take variables (Companion's rule, not mine). I
 
 - the **Open the fader page** preset
 - the `$(ATEM_Audio:page_url)` variable
-- `http://<this computer's address>:8891/`
+- `http://<this computer's address>:8900/`
 
-It's 8891 so it can sit next to OBS Audio's 8890 without a squabble. **Fader page available on** decides who can open it: every network, this computer only, or one network. If others on the network shouldn't be fiddling, set a PIN.
+It's 8900, leaving 8890–8899 for OBS Audio pages, so the two don't squabble. Running two ATEMs? Give the second one 8901, and so on: every connection on one computer needs its own port. **Fader page available on** decides who can open it: every network, this computer only, or one network. If others on the network shouldn't be fiddling, set a PIN.
 
 #### Only so many seats at the table
 
@@ -101,7 +101,7 @@ Odd values (a colour that isn't a colour, a side that's neither left nor right) 
 Got more than one ATEM, or an OBS next to it? Any OBS Audio or ATEM Audio page can pull in strips from the others, on this computer or anywhere on the network. Press **SOURCES** in the header.
 
 - **Found on the network:** every OBS Audio and ATEM Audio connection with its finder on turns up here within a few seconds. Tick one and its strips appear.
-- **Add by address:** on another subnet or a VPN, or its finder's off? Type its page address (as in its `page_url` variable, e.g. `192.168.1.20:8891`).
+- **Add by address:** on another subnet or a VPN, or its finder's off? Type its page address (as in its `page_url` variable, e.g. `192.168.1.20:8900`).
 - **PIN:** if a source has a PIN, you're asked once. This browser remembers it until it stops working (it changed), then asks again.
 - **Colour tag:** each source gets a colour, so you know whose strip is whose. Change it with the swatch.
 - **Remove:** ✕ takes a source off this page. Its own page carries on as normal.

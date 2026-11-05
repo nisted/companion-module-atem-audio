@@ -83,7 +83,7 @@ type ConnField = (typeof CONN_FIELDS)[number]
 const CONN_LABELS: Record<ConnField, string> = {
 	host: 'ATEM address',
 	port: `ATEM port (default ${ATEM_PORT})`,
-	webPort: 'Fader page port (default 8891, 0 = off)',
+	webPort: 'Fader page port (default 8900, 0 = off)',
 	webBind: 'Fader page available on',
 	pin: 'Fader page PIN (blank = none)',
 	finderPort: `Page finder port (UDP, default ${BEACON_PORT}, 0 = off)`,
@@ -309,7 +309,7 @@ export default class AtemAudioInstance extends InstanceBase<AtemAudioTypes> {
 		const r: Resolved = {
 			host: f('host'),
 			port: parseNumber(f('port'), ATEM_PORT, 1, 65535),
-			webPort: parseNumber(f('webPort'), 8891, 0, 65535),
+			webPort: parseNumber(f('webPort'), 8900, 0, 65535),
 			bind: bindAddress(f('webBind')),
 			pin: f('pin'),
 			finderPort: this.config.finderOn === false ? 0 : parseNumber(f('finderPort'), BEACON_PORT, 0, 65535),
@@ -586,8 +586,8 @@ export default class AtemAudioInstance extends InstanceBase<AtemAudioTypes> {
 				id: 'webPort',
 				label: CONN_LABELS.webPort,
 				width: 9,
-				default: '8891',
-				tooltip: 'The port the fader and meter page lives on. Open http://<this computer>:<port>/ in any browser on the network. 0 switches the page off. (OBS Audio uses 8890, so they can sit side by side.)',
+				default: '8900',
+				tooltip: 'The port the fader and meter page lives on. Open http://<this computer>:<port>/ in any browser on the network. 0 switches the page off. (OBS Audio starts at 8890, leaving room for ten OBS Audio pages below this. Every connection on one computer needs its own port.)',
 			}),
 			...lock({
 				type: 'dropdown',
