@@ -1,12 +1,13 @@
 // Runs the core's tests and this module's: bundles each with esbuild (so the TypeScript sources run as they are), then node --test.
 import { build } from 'esbuild'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 await import('./embed-page.mjs')
-const dir = mkdtempSync(join(tmpdir(), 'atem-audio-test-'))
+// built inside the repo so the external atem-connection (native font addon, loads by __dirname) resolves from node_modules
+const dir = new URL('../.test-build/', import.meta.url).pathname
+mkdirSync(dir, { recursive: true })
 const files = []
 for (const [name, entry] of [
 	['core.test.mjs', '../core/test/all.test.ts'],
@@ -22,6 +23,7 @@ for (const [name, entry] of [
 		format: 'esm',
 		outfile,
 		banner: { js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);" },
+		external: ['atem-connection'],
 		logLevel: 'warning',
 	})
 	files.push(outfile)
