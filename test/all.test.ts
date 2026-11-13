@@ -19,14 +19,14 @@ const until = async (fn: () => boolean, ms = 2000) => {
 	assert.ok(fn(), 'timed out waiting')
 }
 
-function rig(make: () => ReturnType<typeof fairlightState>, store?: unknown) {
+function rig(make: () => ReturnType<typeof fairlightState>, store?: unknown, metersQuietMs?: number) {
 	const atem = new FakeAtem(make)
 	const logs: string[] = []
 	const changes: UserChange[] = []
 	const host: EngineHost = { log: (l, m) => logs.push(`${l}: ${m}`), save: () => {}, structureChanged: () => {}, stateChanged: () => {} }
 	const engine = new Engine(host, ATEM_INFO, atemEngineOptions(), store, '')
 	engine.on('userChange', (c: UserChange) => changes.push(c))
-	const device = new AtemDevice({ host: '10.0.0.9', port: 9910, makeLink: () => atem, unreachableMs: 200 })
+	const device = new AtemDevice({ host: '10.0.0.9', port: 9910, makeLink: () => atem, unreachableMs: 200, metersQuietMs })
 	engine.useDevice(device)
 	return { atem, engine, device, logs, changes }
 }
@@ -540,4 +540,19 @@ test('help and manifest: the notice, the name, the right ids', () => {
 	assert.equal(manifest.manufacturer, 'Blackmagic Design')
 	assert.deepEqual(manifest.products, ['ATEM Audio'])
 	assert.equal(manifest.runtime.permissions['worker-threads'], true)
+})
+
+test('meters: if the ATEM stops sending them, ask again until they come back', async (t) => {
+	const { atem, engine, logs } = rig(fairlightState, undefined, 200)
+	t.after(() => engine.destroy())
+	atem.signal = { '1': -20 }
+	await until(() => engine.connected && atem.levelsOn)
+	await sleep(300)
+	const asks = atem.calledWith('startFairlightMixerSendLevels').length
+	assert.equal(asks, 1, 'no extra asks while meters flow')
+	atem.levelsOn = false // the ATEM goes quiet on its own
+	await until(() => atem.calledWith('startFairlightMixerSendLevels').length > asks)
+	assert.ok(atem.calledWith('stopFairlightMixerSendLevels').length >= 1, 'off then on')
+	await until(() => logs.some((l) => l.includes('meters are back')))
+	assert.equal(logs.filter((l) => l.includes('went quiet')).length, 1, 'said once')
 })

@@ -79,6 +79,8 @@ export const ATEM_PORT = 9910
 const UNREACHABLE_MS = 6000
 /** Meters go to the core at most this often */
 const METER_MS = 50
+/** No meters from the ATEM for this long while connected: ask for them again */
+const METERS_QUIET_MS = 1500
 
 export const ATEM_INFO: DeviceInfo = {
 	label: 'the ATEM',
@@ -142,6 +144,8 @@ export interface AtemDeviceOptions {
 	recordingsFolder?: string
 	/** How long without an answer before saying it can't be reached (default 6 s) */
 	unreachableMs?: number
+	/** How long without meters before asking the ATEM for them again (default 1.5 s) */
+	metersQuietMs?: number
 }
 
 /** Extra ATEM state for Companion variables and feedbacks (things the core doesn't model) */
@@ -170,6 +174,10 @@ export class AtemDevice implements Device {
 	#errTimer: NodeJS.Timeout | null = null
 	#durTimer: NodeJS.Timeout | null = null
 	#pendingMeters = new Map<string, DeviceMeter>()
+	/** When meters last arrived, and when we last asked for them */
+	#levelsAt = 0
+	#levelsAskedAt = 0
+	#metersQuiet = false
 	/** What the mix option was before a mute, to put back on unmute */
 	#beforeMute = new Map<string, MixId>()
 	/** Classic gains we sent (the ATEM rounds them a little), id -> dB and when */
@@ -266,6 +274,8 @@ export class AtemDevice implements Device {
 		host.version(protocolText(st.info.apiVersion))
 		host.connected()
 		// the ATEM forgets it was asked for levels every time we (re)connect
+		this.#levelsAt = Date.now()
+		this.#metersQuiet = false
 		void this.#sendLevels(true)
 		if (!this.#meterTimer) this.#meterTimer = setInterval(() => this.#flushMeters(), METER_MS)
 		if (!this.#durTimer) this.#durTimer = setInterval(() => this.#pollDurations(), 1000)
@@ -284,6 +294,7 @@ export class AtemDevice implements Device {
 
 	async #sendLevels(on: boolean): Promise<void> {
 		const m = this.mixer
+		if (on) this.#levelsAskedAt = Date.now()
 		try {
 			if (m === 'fairlight') await this.#call(on ? 'startFairlightMixerSendLevels' : 'stopFairlightMixerSendLevels')
 			else if (m === 'classic' && this.#link?.classicLevels) await this.#call('classicSendLevels', on)
@@ -638,6 +649,11 @@ export class AtemDevice implements Device {
 	// ---- meters -------------------------------------------------------------------------
 
 	#onLevels(l: unknown): void {
+		this.#levelsAt = Date.now()
+		if (this.#metersQuiet) {
+			this.#metersQuiet = false
+			this.#host?.log('info', 'ATEM meters are back.')
+		}
 		const lv = l as { system?: string }
 		if (lv.system === 'classic') return this.#onClassicLevels(l as ClassicLevels)
 		if (lv.system !== 'fairlight') return
@@ -675,7 +691,23 @@ export class AtemDevice implements Device {
 		put('monitor', l.monitor)
 	}
 
+	/** The ATEM can stop sending meters on its own: if they go quiet, ask again (and say so once) */
+	#checkMetersAlive(): void {
+		if (!this.connected || this.mixer === 'none') return
+		const quiet = this.opts.metersQuietMs ?? METERS_QUIET_MS
+		const now = Date.now()
+		if (now - this.#levelsAt < quiet || now - this.#levelsAskedAt < quiet) return
+		if (!this.#metersQuiet) {
+			this.#metersQuiet = true
+			this.#host?.log('info', `ATEM meters went quiet for ${(quiet / 1000).toFixed(1)} s. Asking for them again (and again, until they're back).`)
+		}
+		// off then on, in case the ATEM ignores "on" when it thinks it's already on
+		this.#levelsAskedAt = now
+		void this.#sendLevels(false).then(() => this.#sendLevels(true))
+	}
+
 	#flushMeters(): void {
+		this.#checkMetersAlive()
 		if (!this.#pendingMeters.size) return
 		const list = [...this.#pendingMeters.values()]
 		this.#pendingMeters.clear()
