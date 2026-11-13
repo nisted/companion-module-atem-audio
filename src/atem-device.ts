@@ -178,6 +178,8 @@ export class AtemDevice implements Device {
 	#levelsAt = 0
 	#levelsAskedAt = 0
 	#metersQuiet = false
+	/** Meter diagnostics, logged every 10 s (debug) */
+	#mstat = { src: 0, master: 0, classic: 0, unmatched: 0, at: Date.now(), last: '' }
 	/** What the mix option was before a mute, to put back on unmute */
 	#beforeMute = new Map<string, MixId>()
 	/** Classic gains we sent (the ATEM rounds them a little), id -> dB and when */
@@ -654,7 +656,12 @@ export class AtemDevice implements Device {
 			this.#metersQuiet = false
 			this.#host?.log('info', 'ATEM meters are back.')
 		}
-		const lv = l as { system?: string }
+		const lv = l as { system?: string; type?: string; index?: number; source?: unknown; levels?: Record<string, number> }
+		const st = this.#mstat
+		if (lv.system === 'classic') st.classic++
+		else if (lv.type === 'master') st.master++
+		else st.src++
+		if (lv.system === 'fairlight' && lv.levels && (st.last === '' || lv.type === 'source')) st.last = `${lv.type} ${lv.index ?? ''}/${String(lv.source ?? '')} L ${lv.levels.leftLevel} pk ${lv.levels.leftPeak}`
 		if (lv.system === 'classic') return this.#onClassicLevels(l as ClassicLevels)
 		if (lv.system !== 'fairlight') return
 		const f = l as { type: 'source' | 'master'; index?: number; source?: bigint; levels: Record<string, number> }
@@ -665,7 +672,10 @@ export class AtemDevice implements Device {
 			for (const [sid, s] of this.#strips) if (s.where.t === 'fl' && s.where.index === f.index && s.where.source === src) id = sid
 		}
 		const s = id ? this.#strips.get(id) : undefined
-		if (!s || !id) return
+		if (!s || !id) {
+			st.unmatched++
+			return
+		}
 		const v = f.levels
 		const mono = s.state.channels === 1
 		const pair = (a: string, b: string) => (mono ? [Math.max(flLevelToMul(v[a]), flLevelToMul(v[b]))] : [flLevelToMul(v[a]), flLevelToMul(v[b])])
@@ -706,8 +716,17 @@ export class AtemDevice implements Device {
 		void this.#sendLevels(false).then(() => this.#sendLevels(true))
 	}
 
+	#meterStats(): void {
+		const st = this.#mstat
+		const now = Date.now()
+		if (now - st.at < 10000) return
+		this.#host?.log('debug', `Meters, last ${((now - st.at) / 1000).toFixed(0)} s: ${st.src} source, ${st.master} master, ${st.classic} classic, ${st.unmatched} not matched to a strip, ${this.#strips.size} strips. Latest: ${st.last || 'none'}`)
+		this.#mstat = { src: 0, master: 0, classic: 0, unmatched: 0, at: now, last: '' }
+	}
+
 	#flushMeters(): void {
 		this.#checkMetersAlive()
+		this.#meterStats()
 		if (!this.#pendingMeters.size) return
 		const list = [...this.#pendingMeters.values()]
 		this.#pendingMeters.clear()
